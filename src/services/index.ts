@@ -13,4 +13,5 @@
  * and response typing using the interfaces defined in types/.
  */
 
-export {};
+export { fetchLiveAQI, extractPollutantValues } from "./waqi";
+export { getHealthAdvice } from "./healthAdvice";
