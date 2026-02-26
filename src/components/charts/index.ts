@@ -12,3 +12,8 @@
  */
 
 export { default as ForecastChart } from "./ForecastChart";
+export { default as ComparisonChart } from "./ComparisonChart";
+export { default as PollutantsComparisonTable } from "./PollutantsComparisonTable";
+export { default as MonthlyTrendChart } from "./MonthlyTrendChart";
+export { default as PollutantTrendChart } from "./PollutantTrendChart";
+export { default as YearComparisonChart } from "./YearComparisonChart";
