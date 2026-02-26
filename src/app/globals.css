@@ -95,3 +95,61 @@
     font-family: var(--font-outfit), system-ui, sans-serif;
   }
 }
+
+/* ─── Custom Range Slider ─────────────────────────────────────────────────── */
+/* Used in signup Step 3 for AQI alert threshold selection.                    */
+/* Uses --slider-percent CSS variable to fill the track up to the thumb.      */
+
+.slider-input {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 6px;
+  border-radius: 999px;
+  background: linear-gradient(
+    to right,
+    hsl(var(--primary)) 0%,
+    hsl(var(--primary)) var(--slider-percent, 50%),
+    hsl(var(--border)) var(--slider-percent, 50%),
+    hsl(var(--border)) 100%
+  );
+  outline: none;
+  cursor: pointer;
+}
+
+.slider-input::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: hsl(var(--primary));
+  border: 2px solid hsl(var(--background));
+  box-shadow: 0 0 0 2px hsl(var(--primary) / 0.2);
+  cursor: pointer;
+  transition: box-shadow 0.15s ease;
+}
+
+.slider-input::-webkit-slider-thumb:hover {
+  box-shadow: 0 0 0 4px hsl(var(--primary) / 0.15);
+}
+
+.slider-input::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: hsl(var(--primary));
+  border: 2px solid hsl(var(--background));
+  box-shadow: 0 0 0 2px hsl(var(--primary) / 0.2);
+  cursor: pointer;
+  transition: box-shadow 0.15s ease;
+}
+
+.slider-input::-moz-range-thumb:hover {
+  box-shadow: 0 0 0 4px hsl(var(--primary) / 0.15);
+}
+
+.slider-input::-moz-range-track {
+  height: 6px;
+  border-radius: 999px;
+  background: transparent;
+}

@@ -61,6 +61,7 @@ export interface Database {
           aqi_alert_threshold?: number;
           created_at?: string;
         };
+        Relationships: [];
       };
       aqi_history: {
         Row: {
@@ -108,6 +109,7 @@ export interface Database {
           o3?: number | null;
           fetched_at?: string;
         };
+        Relationships: [];
       };
       alerts_log: {
         Row: {
@@ -134,6 +136,7 @@ export interface Database {
           area?: string;
           sent_at?: string;
         };
+        Relationships: [];
       };
     };
     Views: {
@@ -143,6 +146,9 @@ export interface Database {
       [_ in never]: never;
     };
     Enums: {
+      [_ in never]: never;
+    };
+    CompositeTypes: {
       [_ in never]: never;
     };
   };
