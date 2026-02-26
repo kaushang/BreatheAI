@@ -15,6 +15,7 @@ import { NextResponse, type NextRequest } from "next/server";
 const PROTECTED_ROUTES = [
   "/dashboard",
   "/forecast",
+  "/ask",
   "/compare",
   "/trends",
   "/profile",

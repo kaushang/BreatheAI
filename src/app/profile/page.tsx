@@ -6,11 +6,19 @@
  * and set AQI alert thresholds for personalized notifications.
  */
 
+import DashboardLayout from "@/components/layout/DashboardLayout";
+
 export default function ProfilePage() {
   return (
-    <div>
-      <h1>Profile Settings</h1>
-      <p>Manage your profile and health preferences — coming soon.</p>
-    </div>
+    <DashboardLayout>
+      <div>
+        <h1 className="text-xl font-semibold text-foreground font-heading">
+          Profile Settings
+        </h1>
+        <p className="mt-2 text-sm text-muted-foreground">
+          Manage your profile and health preferences — coming soon.
+        </p>
+      </div>
+    </DashboardLayout>
   );
 }

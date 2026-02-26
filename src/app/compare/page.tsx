@@ -6,11 +6,19 @@
  * Useful for understanding regional air quality differences.
  */
 
+import DashboardLayout from "@/components/layout/DashboardLayout";
+
 export default function ComparePage() {
   return (
-    <div>
-      <h1>Compare Cities</h1>
-      <p>Side-by-side AQI comparison across Indian cities — coming soon.</p>
-    </div>
+    <DashboardLayout>
+      <div>
+        <h1 className="text-xl font-semibold text-foreground font-heading">
+          Compare Cities
+        </h1>
+        <p className="mt-2 text-sm text-muted-foreground">
+          Side-by-side AQI comparison across Indian cities — coming soon.
+        </p>
+      </div>
+    </DashboardLayout>
   );
 }

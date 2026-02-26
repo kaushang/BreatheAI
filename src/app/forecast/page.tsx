@@ -6,11 +6,19 @@
  * pollutant-level forecasts, and trend visualizations using Recharts.
  */
 
+import DashboardLayout from "@/components/layout/DashboardLayout";
+
 export default function ForecastPage() {
   return (
-    <div>
-      <h1>AQI Forecast</h1>
-      <p>48-hour AQI predictions — coming soon.</p>
-    </div>
+    <DashboardLayout>
+      <div>
+        <h1 className="text-xl font-semibold text-foreground font-heading">
+          AQI Forecast
+        </h1>
+        <p className="mt-2 text-sm text-muted-foreground">
+          48-hour AQI predictions — coming soon.
+        </p>
+      </div>
+    </DashboardLayout>
   );
 }
