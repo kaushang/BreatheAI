@@ -2,11 +2,9 @@
  * Layout Components Directory
  *
  * Contains shared layout components used across multiple pages:
- * - Navbar / Header with navigation links and theme toggle
- * - Sidebar for dashboard navigation
- * - Footer with app information
- * - PageWrapper with consistent padding/spacing
- * - MobileNav for responsive navigation
+ * - Navbar — landing page top navigation with hamburger mobile menu
+ * - Footer — landing page footer with branding, links, copyright
  */
 
-export {};
+export { default as Navbar } from "./Navbar";
+export { default as Footer } from "./Footer";

@@ -63,15 +63,26 @@ export default function DashboardPage() {
       setProfileLoading(true);
       setProfileError(null);
 
+      console.log("[Dashboard] Fetching authenticated user…");
+
       const {
         data: { user },
         error: authError,
       } = await supabase.auth.getUser();
 
-      if (authError || !user) {
+      if (authError) {
+        console.error("[Dashboard] Auth error:", authError);
         router.push("/auth/login");
         return;
       }
+
+      if (!user) {
+        console.warn("[Dashboard] No user found, redirecting to login.");
+        router.push("/auth/login");
+        return;
+      }
+
+      console.log("[Dashboard] Authenticated user:", user.id);
 
       const { data, error } = await supabase
         .from("profiles")
@@ -80,11 +91,44 @@ export default function DashboardPage() {
         .single();
 
       if (error) {
-        throw new Error("Failed to load your profile. Please try again.");
+        console.error("[Dashboard] Profile fetch error:", {
+          message: error.message,
+          code: error.code,
+          details: error.details,
+          hint: error.hint,
+        });
+
+        // PGRST116 = "JSON object requested, multiple (or no) rows returned"
+        // This means no profile row exists yet for this user.
+        if (error.code === "PGRST116") {
+          setProfileError(
+            "Your profile hasn't been set up yet. This can happen if email verification is pending. " +
+              "Please try logging out and signing up again, or contact support.",
+          );
+        } else {
+          setProfileError(`Failed to load your profile: ${error.message}`);
+        }
+        return;
       }
+
+      if (!data) {
+        console.error("[Dashboard] Profile query returned null data");
+        setProfileError(
+          "Profile data is missing. Please try signing up again.",
+        );
+        return;
+      }
+
+      console.log("[Dashboard] Profile loaded:", {
+        city: data.city,
+        area: data.area,
+        lat: data.lat,
+        lng: data.lng,
+      });
 
       setProfile(data as UserProfileData);
     } catch (err) {
+      console.error("[Dashboard] Unexpected error:", err);
       const message =
         err instanceof Error ? err.message : "An unexpected error occurred";
       setProfileError(message);

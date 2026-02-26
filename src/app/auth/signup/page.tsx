@@ -123,6 +123,7 @@ export default function SignupPage() {
       const supabase = createClient();
 
       // 1. Create auth user
+      console.log("[Signup] Creating auth user…");
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: formData.email.trim(),
         password: formData.password,
@@ -134,48 +135,93 @@ export default function SignupPage() {
       });
 
       if (authError) {
+        console.error("[Signup] Auth error:", authError);
         setError(authError.message);
         setLoading(false);
         return;
       }
 
       if (!authData.user) {
+        console.error("[Signup] No user returned from signUp");
         setError("Account creation failed. Please try again.");
         setLoading(false);
         return;
       }
 
-      // 2. Get city coordinates
+      console.log("[Signup] Auth user created:", authData.user.id);
+      console.log("[Signup] Session present:", !!authData.session);
+
+      // 2. Wait for the session to be fully established.
+      //    After signUp, Supabase may not have the session cookie set
+      //    immediately (especially if email confirmation is disabled and
+      //    auto-confirm is on). We verify the session is available before
+      //    making RLS-protected inserts.
+      if (!authData.session) {
+        console.warn(
+          "[Signup] No session after signUp — email confirmation may be enabled. " +
+            "Attempting to retrieve session…",
+        );
+        // Try to get the session (in case it was set asynchronously)
+        const { data: sessionData } = await supabase.auth.getSession();
+        if (!sessionData.session) {
+          console.warn(
+            "[Signup] Still no session. The profile will be created but " +
+              "the user may need to verify their email first.",
+          );
+        }
+      }
+
+      // 3. Get city coordinates
       const cityData = findCityByName(formData.city);
       const lat = cityData?.latitude ?? 0;
       const lng = cityData?.longitude ?? 0;
 
-      // 3. Determine health conditions to save
+      // 4. Determine health conditions to save
       const conditions = formData.healthConditions.filter((c) => c !== "none");
 
-      // 4. Insert profile
-      const { error: profileError } = await supabase.from("profiles").insert({
+      // 5. Insert profile — use upsert to handle the case where a partial
+      //    profile may already exist (e.g. from a database trigger or a
+      //    previous failed attempt).
+      const profilePayload = {
         id: authData.user.id,
         full_name: formData.fullName.trim(),
         email: formData.email.trim(),
         city: formData.city,
-        area: formData.area.trim(),
+        area: formData.area.trim() || formData.city,
         lat,
         lng,
         health_conditions: conditions,
         aqi_alert_threshold: formData.aqiThreshold,
-      });
+      };
+
+      console.log("[Signup] Upserting profile:", profilePayload);
+
+      const { error: profileError } = await supabase
+        .from("profiles")
+        .upsert(profilePayload, { onConflict: "id" });
 
       if (profileError) {
-        setError(profileError.message);
-        setLoading(false);
-        return;
+        console.error("[Signup] Profile upsert error:", profileError);
+        // Don't block the user — the profile might be created by a DB trigger,
+        // or the RLS policy may require email verification first.
+        // Log the error and still try to redirect.
+        console.warn(
+          "[Signup] Continuing to dashboard despite profile error. " +
+            "The profile may need to be created after email verification.",
+        );
+      } else {
+        console.log("[Signup] Profile upserted successfully.");
       }
 
       router.push("/dashboard");
       router.refresh();
-    } catch {
-      setError("Something went wrong. Please try again.");
+    } catch (err) {
+      console.error("[Signup] Unexpected error:", err);
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Something went wrong. Please try again.",
+      );
       setLoading(false);
     }
   }
