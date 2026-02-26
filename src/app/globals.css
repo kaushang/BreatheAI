@@ -2,26 +2,96 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
-body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
-}
+/*
+ * BreatheAI Global Styles
+ *
+ * Theme design: Clean, modern, and air-quality focused.
+ * - Light mode: Bright whites with teal/emerald accents
+ * - Dark mode: Deep charcoals with vibrant teal/emerald accents
+ * - Chart colors designed for AQI data visualization
+ */
 
 @layer utilities {
   .text-balance {
     text-wrap: balance;
+  }
+}
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 220 14% 10%;
+    --card: 0 0% 100%;
+    --card-foreground: 220 14% 10%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 14% 10%;
+    --primary: 166 72% 40%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 170 20% 95%;
+    --secondary-foreground: 220 14% 10%;
+    --muted: 210 15% 96%;
+    --muted-foreground: 220 10% 46%;
+    --accent: 170 20% 95%;
+    --accent-foreground: 220 14% 10%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 220 13% 91%;
+    --input: 220 13% 91%;
+    --ring: 166 72% 40%;
+    --radius: 0.625rem;
+
+    /* AQI-themed chart colors */
+    --chart-1: 152 60% 45%; /* Green - Good */
+    --chart-2: 48 95% 53%; /* Yellow - Satisfactory */
+    --chart-3: 30 90% 55%; /* Orange - Moderate */
+    --chart-4: 350 80% 50%; /* Red - Poor */
+    --chart-5: 270 60% 50%; /* Purple - Very Poor */
+  }
+
+  .dark {
+    --background: 222 20% 7%;
+    --foreground: 210 20% 95%;
+    --card: 222 18% 10%;
+    --card-foreground: 210 20% 95%;
+    --popover: 222 18% 10%;
+    --popover-foreground: 210 20% 95%;
+    --primary: 166 72% 45%;
+    --primary-foreground: 222 20% 7%;
+    --secondary: 220 15% 16%;
+    --secondary-foreground: 210 20% 95%;
+    --muted: 220 15% 16%;
+    --muted-foreground: 215 15% 60%;
+    --accent: 220 15% 16%;
+    --accent-foreground: 210 20% 95%;
+    --destructive: 0 62% 30%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 220 15% 18%;
+    --input: 220 15% 18%;
+    --ring: 166 72% 45%;
+
+    /* AQI-themed chart colors (brighter for dark mode) */
+    --chart-1: 152 65% 50%;
+    --chart-2: 48 97% 58%;
+    --chart-3: 30 92% 60%;
+    --chart-4: 350 82% 55%;
+    --chart-5: 270 65% 58%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: var(--font-inter), system-ui, sans-serif;
+  }
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: var(--font-outfit), system-ui, sans-serif;
   }
 }
