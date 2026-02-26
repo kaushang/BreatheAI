@@ -1,15 +1,15 @@
 /**
  * Dashboard Page
  *
- * Main dashboard view with skeleton placeholders for all sections.
- * Fetches the user's profile from Supabase and shows a greeting.
- *
- * Sections:
+ * Main dashboard view that fetches live AQI data and displays:
  *   1. Header — "Good morning, [name]" + city/area on the right
- *   2. Main AQI Card — large skeleton placeholder
- *   3. Pollutants Grid — 6 skeleton boxes in 3×2 grid (PM2.5, PM10, NO2, SO2, CO, O3)
- *   4. Health Advice Card — skeleton placeholder
- *   5. Best Time to Go Outside — wide skeleton bar
+ *   2. Main AQI Card — live AQI with color-coded category
+ *   3. Pollutants Grid — individual pollutant concentrations
+ *   4. Health Advice Card — personalized advisory based on AQI + health profile
+ *   5. Best Time to Go Outside — placeholder for future forecast integration
+ *
+ * Uses the useAQI hook to fetch live data from /api/aqi/current,
+ * and renders skeleton loaders while data is being fetched.
  */
 
 "use client";
@@ -19,7 +19,9 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Skeleton } from "@/components/ui/skeleton";
 import DashboardLayout from "@/components/layout/DashboardLayout";
-import { MapPin, Loader2 } from "lucide-react";
+import { AQICard, PollutantsCard, HealthAdviceCard } from "@/components/cards";
+import { useAQI } from "@/hooks/useAQI";
+import { MapPin, RefreshCw, AlertCircle, Clock } from "lucide-react";
 
 // ─── Profile type ────────────────────────────────────────────────────────────
 
@@ -31,10 +33,6 @@ interface UserProfileData {
   lng: number;
   health_conditions: string[];
 }
-
-// ─── Pollutant labels ────────────────────────────────────────────────────────
-
-const POLLUTANTS = ["PM2.5", "PM10", "NO₂", "SO₂", "CO", "O₃"] as const;
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -78,6 +76,14 @@ export default function DashboardPage() {
     fetchProfile();
   }, [fetchProfile]);
 
+  // ── Fetch live AQI using the user's coordinates ──────────────────────────
+  const {
+    data: aqiData,
+    loading: aqiLoading,
+    error: aqiError,
+    refetch: refetchAQI,
+  } = useAQI(profile?.lat ?? null, profile?.lng ?? null);
+
   // ── Greeting helper ──────────────────────────────────────────────────────
   const greeting = (() => {
     const hour = new Date().getHours();
@@ -87,6 +93,9 @@ export default function DashboardPage() {
   })();
 
   const firstName = profile?.full_name?.split(" ")[0] ?? "there";
+
+  // ── Derived loading state ────────────────────────────────────────────────
+  const isLoading = profileLoading || aqiLoading;
 
   return (
     <DashboardLayout>
@@ -105,32 +114,73 @@ export default function DashboardPage() {
           )}
         </div>
 
-        <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+        <div className="flex items-center gap-3">
           {profileLoading ? (
             <Skeleton className="h-4 w-36" />
           ) : (
-            <>
+            <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
               <MapPin className="h-3.5 w-3.5 shrink-0" />
               <span>
                 {profile?.area}, {profile?.city}
               </span>
-            </>
+            </div>
+          )}
+
+          {/* Refresh button */}
+          {!profileLoading && (
+            <button
+              onClick={refetchAQI}
+              disabled={aqiLoading}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-medium text-muted-foreground transition-all duration-200 hover:bg-muted hover:text-foreground disabled:opacity-50 disabled:cursor-not-allowed"
+              title="Refresh AQI data"
+            >
+              <RefreshCw
+                className={`h-3 w-3 ${aqiLoading ? "animate-spin" : ""}`}
+              />
+              Refresh
+            </button>
           )}
         </div>
       </header>
+
+      {/* ── Error State ─────────────────────────────────────────────────── */}
+      {aqiError && !aqiLoading && (
+        <div className="mb-6 rounded-xl border border-destructive/30 bg-destructive/[0.04] p-5">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <h3 className="text-sm font-semibold text-destructive mb-1">
+                Unable to fetch AQI data
+              </h3>
+              <p className="text-sm text-muted-foreground mb-3">{aqiError}</p>
+              <button
+                onClick={refetchAQI}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-destructive/10 px-3 py-1.5 text-xs font-semibold text-destructive transition-colors hover:bg-destructive/20"
+              >
+                <RefreshCw className="h-3 w-3" />
+                Try Again
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Main AQI Card ───────────────────────────────────────────────── */}
       <section id="section-aqi-card" className="mb-6">
         <h2 className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-3">
           Air Quality Index
         </h2>
-        <div className="rounded-xl border border-border bg-card p-8">
-          <div className="flex flex-col items-center gap-4">
-            <Skeleton className="h-24 w-32 rounded-xl" />
-            <Skeleton className="h-7 w-28 rounded-full" />
-            <Skeleton className="h-4 w-48" />
+        {isLoading ? (
+          <div className="rounded-xl border border-border bg-card p-8">
+            <div className="flex flex-col items-center gap-4">
+              <Skeleton className="h-24 w-32 rounded-xl" />
+              <Skeleton className="h-7 w-28 rounded-full" />
+              <Skeleton className="h-4 w-48" />
+            </div>
           </div>
-        </div>
+        ) : aqiData ? (
+          <AQICard reading={aqiData} />
+        ) : null}
       </section>
 
       {/* ── Pollutants Grid ─────────────────────────────────────────────── */}
@@ -138,20 +188,22 @@ export default function DashboardPage() {
         <h2 className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-3">
           Pollutant Breakdown
         </h2>
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-          {POLLUTANTS.map((name) => (
-            <div
-              key={name}
-              className="rounded-xl border border-border bg-card p-5 space-y-3"
-            >
-              <p className="text-xs font-medium text-muted-foreground">
-                {name}
-              </p>
-              <Skeleton className="h-8 w-16" />
-              <Skeleton className="h-3 w-12" />
-            </div>
-          ))}
-        </div>
+        {isLoading ? (
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div
+                key={i}
+                className="rounded-xl border border-border bg-card p-5 space-y-3"
+              >
+                <Skeleton className="h-4 w-12" />
+                <Skeleton className="h-8 w-16" />
+                <Skeleton className="h-3 w-12" />
+              </div>
+            ))}
+          </div>
+        ) : aqiData ? (
+          <PollutantsCard pollutants={aqiData.pollutants} />
+        ) : null}
       </section>
 
       {/* ── Health Advice Card ──────────────────────────────────────────── */}
@@ -159,14 +211,21 @@ export default function DashboardPage() {
         <h2 className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-3">
           Health Advisory
         </h2>
-        <div className="rounded-xl border border-border bg-card p-6 space-y-4">
-          <Skeleton className="h-5 w-44" />
-          <div className="space-y-2">
-            <Skeleton className="h-3.5 w-full" />
-            <Skeleton className="h-3.5 w-5/6" />
-            <Skeleton className="h-3.5 w-3/4" />
+        {isLoading ? (
+          <div className="rounded-xl border border-border bg-card p-6 space-y-4">
+            <Skeleton className="h-5 w-44" />
+            <div className="space-y-2">
+              <Skeleton className="h-3.5 w-full" />
+              <Skeleton className="h-3.5 w-5/6" />
+              <Skeleton className="h-3.5 w-3/4" />
+            </div>
           </div>
-        </div>
+        ) : aqiData ? (
+          <HealthAdviceCard
+            aqi={aqiData.aqi}
+            healthConditions={profile?.health_conditions ?? []}
+          />
+        ) : null}
       </section>
 
       {/* ── Best Time to Go Outside ────────────────────────────────────── */}
@@ -174,15 +233,30 @@ export default function DashboardPage() {
         <h2 className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-3">
           Best Time to Go Outside
         </h2>
-        <div className="rounded-xl border border-border bg-card p-6 space-y-4">
-          <Skeleton className="h-4 w-40" />
-          <Skeleton className="h-14 w-full rounded-lg" />
-          <div className="flex justify-between">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <Skeleton key={i} className="h-3 w-8" />
-            ))}
+        {isLoading ? (
+          <div className="rounded-xl border border-border bg-card p-6 space-y-4">
+            <Skeleton className="h-4 w-40" />
+            <Skeleton className="h-14 w-full rounded-lg" />
+            <div className="flex justify-between">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <Skeleton key={i} className="h-3 w-8" />
+              ))}
+            </div>
           </div>
-        </div>
+        ) : (
+          <div className="rounded-2xl border border-border bg-card p-6">
+            <div className="flex items-center gap-2 mb-4">
+              <Clock className="h-4 w-4 text-primary" />
+              <span className="text-sm font-medium text-foreground">
+                Forecast coming soon
+              </span>
+            </div>
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              We&apos;re working on integrating hourly AQI forecasts so you can
+              plan the best time for outdoor activities. Stay tuned!
+            </p>
+          </div>
+        )}
       </section>
 
       {/* ── Footer note ────────────────────────────────────────────────── */}

@@ -11,4 +11,4 @@
  * Each chart component is self-contained with its own data formatting logic.
  */
 
-export {};
+export { default as ForecastChart } from "./ForecastChart";
