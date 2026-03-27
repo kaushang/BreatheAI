@@ -3,15 +3,18 @@
 /**
  * Login Page
  *
- * Simple email + password login form.
- * On success, redirects to /dashboard (or to the redirect query param).
- * Clean, minimal design with Inter font.
+ * Email + password login via Firebase Auth.
+ * On success:
+ *   1. Signs in with Firebase client SDK
+ *   2. Exchanges the ID token for a server-side session cookie (/api/auth/session)
+ *   3. Redirects to /dashboard (or the redirect query param)
  */
 
 import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/client";
+import { signInWithEmailAndPassword } from "firebase/auth";
+import { auth } from "@/lib/firebase/client";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -30,22 +33,47 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const supabase = createClient();
-      const { error: authError } = await supabase.auth.signInWithPassword({
-        email: email.trim(),
-        password,
+      // 1. Sign in with Firebase (client-side)
+      const credential = await signInWithEmailAndPassword(
+        auth,
+        email.trim(),
+        password
+      );
+
+      // 2. Exchange the short-lived ID token for a long-lived session cookie
+      const idToken = await credential.user.getIdToken();
+      const res = await fetch("/api/auth/session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ idToken }),
       });
 
-      if (authError) {
-        setError(authError.message);
-        setLoading(false);
-        return;
+      if (!res.ok) {
+        throw new Error("Session creation failed. Please try again.");
       }
 
+      // 3. Redirect
       router.push(redirectTo);
       router.refresh();
-    } catch {
-      setError("Something went wrong. Please try again.");
+    } catch (err: unknown) {
+      const firebaseError = err as { code?: string; message?: string };
+      const code = firebaseError?.code ?? "";
+
+      if (
+        code === "auth/user-not-found" ||
+        code === "auth/wrong-password" ||
+        code === "auth/invalid-credential"
+      ) {
+        setError("Invalid email or password.");
+      } else if (code === "auth/too-many-requests") {
+        setError("Too many failed attempts. Please try again later.");
+      } else if (code === "auth/user-disabled") {
+        setError("This account has been disabled.");
+      } else {
+        setError(
+          firebaseError?.message || "Something went wrong. Please try again."
+        );
+      }
       setLoading(false);
     }
   }

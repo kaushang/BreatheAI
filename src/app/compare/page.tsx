@@ -193,10 +193,9 @@ export default function ComparePage() {
           Current Air Quality
         </h2>
         <div
-          className="grid gap-4"
-          style={{
-            gridTemplateColumns: `repeat(${Math.min(cityDataList.length, 4)}, minmax(0, 1fr))`,
-          }}
+          className={`grid gap-4 grid-cols-1 sm:grid-cols-2 ${
+            cityDataList.length >= 3 ? "lg:grid-cols-3" : ""
+          } ${cityDataList.length >= 4 ? "xl:grid-cols-4" : ""}`}
         >
           {cityDataList.map((cityData) => {
             const category = getNAQICategory(cityData.aqi);

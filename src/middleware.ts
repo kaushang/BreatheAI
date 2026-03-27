@@ -1,14 +1,16 @@
 /**
  * Middleware — Route Protection
  *
- * Protects authenticated routes by checking for a valid Supabase session.
- * Unauthenticated users are redirected to /auth/login.
- * Authenticated users visiting /auth/* pages are redirected to /dashboard.
+ * Protects authenticated routes by checking for the presence of a Firebase
+ * session cookie (__session). The cookie is set server-side by the
+ * /api/auth/session route after successful Firebase sign-in.
  *
- * Uses @supabase/ssr for cookie-based session management in the middleware layer.
+ * Note: Next.js Middleware runs in the Edge Runtime, which is incompatible
+ * with the Firebase Admin SDK. We only check cookie presence here for fast
+ * redirects. Full cryptographic session verification is done per-request
+ * inside API Route Handlers using Firebase Admin SDK.
  */
 
-import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 // Routes that require authentication
@@ -25,47 +27,9 @@ const PROTECTED_ROUTES = [
 // Routes only for unauthenticated users
 const AUTH_ROUTES = ["/auth/login", "/auth/signup"];
 
-export async function middleware(request: NextRequest) {
-  let response = NextResponse.next({
-    request: {
-      headers: request.headers,
-    },
-  });
-
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        get(name: string) {
-          return request.cookies.get(name)?.value;
-        },
-        set(name: string, value: string, options: CookieOptions) {
-          request.cookies.set({ name, value, ...options });
-          response = NextResponse.next({
-            request: {
-              headers: request.headers,
-            },
-          });
-          response.cookies.set({ name, value, ...options });
-        },
-        remove(name: string, options: CookieOptions) {
-          request.cookies.set({ name, value: "", ...options });
-          response = NextResponse.next({
-            request: {
-              headers: request.headers,
-            },
-          });
-          response.cookies.set({ name, value: "", ...options });
-        },
-      },
-    }
-  );
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
+export function middleware(request: NextRequest) {
+  const sessionCookie = request.cookies.get("__session")?.value;
+  const isAuthenticated = !!sessionCookie;
   const pathname = request.nextUrl.pathname;
 
   // Redirect unauthenticated users away from protected routes
@@ -73,7 +37,7 @@ export async function middleware(request: NextRequest) {
     (route) => pathname === route || pathname.startsWith(route + "/")
   );
 
-  if (isProtectedRoute && !user) {
+  if (isProtectedRoute && !isAuthenticated) {
     const loginUrl = new URL("/auth/login", request.url);
     loginUrl.searchParams.set("redirect", pathname);
     return NextResponse.redirect(loginUrl);
@@ -84,11 +48,11 @@ export async function middleware(request: NextRequest) {
     (route) => pathname === route || pathname.startsWith(route + "/")
   );
 
-  if (isAuthRoute && user) {
+  if (isAuthRoute && isAuthenticated) {
     return NextResponse.redirect(new URL("/dashboard", request.url));
   }
 
-  return response;
+  return NextResponse.next();
 }
 
 export const config = {

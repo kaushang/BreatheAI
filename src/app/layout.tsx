@@ -4,7 +4,7 @@
  * The root layout for the BreatheAI application. Sets up:
  * - Google Fonts (Inter for body, Outfit for headings)
  * - ThemeProvider for dark/light mode support
- * - Global metadata (SEO)
+ * - Global metadata (SEO) + Open Graph tags
  * - Base HTML structure with dark mode class strategy
  */
 
@@ -26,10 +26,9 @@ const outfit = Outfit({
 });
 
 export const metadata: Metadata = {
-  title:
-    "BreatheAI — Breathe Smarter | Indian AQI Predictions & Health Advisory",
+  title: "breatheAI — Know Your Air",
   description:
-    "BreatheAI provides real-time Indian AQI (NAQI) monitoring, 48-hour air quality forecasts, and personalized health advisories for 50+ Indian cities. Stay informed, breathe smarter.",
+    "Hyperlocal AQI predictions and personalized health advice for India. Real-time NAQI monitoring, 48-hour forecasts, and AI-powered health advisories for 50+ Indian cities.",
   keywords: [
     "AQI India",
     "NAQI",
@@ -38,8 +37,23 @@ export const metadata: Metadata = {
     "CPCB",
     "PM2.5",
     "Health Advisory",
-    "BreatheAI",
+    "breatheAI",
+    "AQI Prediction",
   ],
+  openGraph: {
+    title: "breatheAI — Know Your Air",
+    description:
+      "Hyperlocal AQI predictions and personalized health advice for India",
+    type: "website",
+    locale: "en_IN",
+    siteName: "breatheAI",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "breatheAI — Know Your Air",
+    description:
+      "Hyperlocal AQI predictions and personalized health advice for India",
+  },
 };
 
 export default function RootLayout({

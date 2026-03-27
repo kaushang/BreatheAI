@@ -8,9 +8,10 @@
  * Step 3: Health conditions checklist + AQI alert threshold slider
  *
  * On submit:
- * 1. Creates Supabase auth user (signUp)
- * 2. Inserts row into profiles table
- * 3. Redirects to /dashboard
+ * 1. Creates Firebase Auth user (createUserWithEmailAndPassword)
+ * 2. Saves profile to Firestore (users/{uid})
+ * 3. Exchanges ID token for session cookie
+ * 4. Redirects to /dashboard
  *
  * UI: Calm, minimal, Inter font, step progress indicator at top.
  */
@@ -18,7 +19,9 @@
 import { useState, useRef, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/client";
+import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
+import { doc, setDoc } from "firebase/firestore";
+import { auth, db } from "@/lib/firebase/client";
 import { INDIAN_CITIES, findCityByName } from "@/constants/cities";
 
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -120,56 +123,20 @@ export default function SignupPage() {
     setLoading(true);
 
     try {
-      const supabase = createClient();
+      // 1. Create Firebase Auth user
+      console.log("[Signup] Creating Firebase auth user…");
+      const credential = await createUserWithEmailAndPassword(
+        auth,
+        formData.email.trim(),
+        formData.password
+      );
 
-      // 1. Create auth user
-      console.log("[Signup] Creating auth user…");
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: formData.email.trim(),
-        password: formData.password,
-        options: {
-          data: {
-            full_name: formData.fullName.trim(),
-          },
-        },
+      // 2. Set the display name on the Firebase user
+      await updateProfile(credential.user, {
+        displayName: formData.fullName.trim(),
       });
 
-      if (authError) {
-        console.error("[Signup] Auth error:", authError);
-        setError(authError.message);
-        setLoading(false);
-        return;
-      }
-
-      if (!authData.user) {
-        console.error("[Signup] No user returned from signUp");
-        setError("Account creation failed. Please try again.");
-        setLoading(false);
-        return;
-      }
-
-      console.log("[Signup] Auth user created:", authData.user.id);
-      console.log("[Signup] Session present:", !!authData.session);
-
-      // 2. Wait for the session to be fully established.
-      //    After signUp, Supabase may not have the session cookie set
-      //    immediately (especially if email confirmation is disabled and
-      //    auto-confirm is on). We verify the session is available before
-      //    making RLS-protected inserts.
-      if (!authData.session) {
-        console.warn(
-          "[Signup] No session after signUp — email confirmation may be enabled. " +
-            "Attempting to retrieve session…",
-        );
-        // Try to get the session (in case it was set asynchronously)
-        const { data: sessionData } = await supabase.auth.getSession();
-        if (!sessionData.session) {
-          console.warn(
-            "[Signup] Still no session. The profile will be created but " +
-              "the user may need to verify their email first.",
-          );
-        }
-      }
+      console.log("[Signup] Firebase user created:", credential.user.uid);
 
       // 3. Get city coordinates
       const cityData = findCityByName(formData.city);
@@ -179,11 +146,9 @@ export default function SignupPage() {
       // 4. Determine health conditions to save
       const conditions = formData.healthConditions.filter((c) => c !== "none");
 
-      // 5. Insert profile — use upsert to handle the case where a partial
-      //    profile may already exist (e.g. from a database trigger or a
-      //    previous failed attempt).
+      // 5. Save profile to Firestore users/{uid}
       const profilePayload = {
-        id: authData.user.id,
+        uid: credential.user.uid,
         full_name: formData.fullName.trim(),
         email: formData.email.trim(),
         city: formData.city,
@@ -192,36 +157,41 @@ export default function SignupPage() {
         lng,
         health_conditions: conditions,
         aqi_alert_threshold: formData.aqiThreshold,
+        created_at: new Date().toISOString(),
       };
 
-      console.log("[Signup] Upserting profile:", profilePayload);
+      console.log("[Signup] Writing profile to Firestore…");
+      await setDoc(doc(db, "users", credential.user.uid), profilePayload);
+      console.log("[Signup] Profile saved.");
 
-      const { error: profileError } = await supabase
-        .from("profiles")
-        .upsert(profilePayload, { onConflict: "id" });
+      // 6. Exchange Firebase ID token for a server-side session cookie
+      const idToken = await credential.user.getIdToken();
+      const res = await fetch("/api/auth/session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ idToken }),
+      });
 
-      if (profileError) {
-        console.error("[Signup] Profile upsert error:", profileError);
-        // Don't block the user — the profile might be created by a DB trigger,
-        // or the RLS policy may require email verification first.
-        // Log the error and still try to redirect.
-        console.warn(
-          "[Signup] Continuing to dashboard despite profile error. " +
-            "The profile may need to be created after email verification.",
-        );
-      } else {
-        console.log("[Signup] Profile upserted successfully.");
+      if (!res.ok) {
+        throw new Error("Session creation failed. Please sign in manually.");
       }
 
       router.push("/dashboard");
       router.refresh();
-    } catch (err) {
+    } catch (err: unknown) {
       console.error("[Signup] Unexpected error:", err);
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Something went wrong. Please try again.",
-      );
+      const firebaseError = err as { code?: string; message?: string };
+      const code = firebaseError?.code ?? "";
+
+      if (code === "auth/email-already-in-use") {
+        setError("An account with this email already exists.");
+      } else if (code === "auth/weak-password") {
+        setError("Password is too weak. Use at least 6 characters.");
+      } else {
+        setError(
+          firebaseError?.message ?? "Something went wrong. Please try again."
+        );
+      }
       setLoading(false);
     }
   }

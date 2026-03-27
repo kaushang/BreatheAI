@@ -153,3 +153,55 @@
   border-radius: 999px;
   background: transparent;
 }
+
+/* ─── Mobile Safe Area ───────────────────────────────────────────────────── */
+/* Ensures bottom nav doesn't overlap content on iOS with home indicator.   */
+
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* ─── Scrollbar Styling ──────────────────────────────────────────────────── */
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--border));
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground) / 0.3);
+}
+
+/* ─── Loading Spinner ────────────────────────────────────────────────────── */
+
+@keyframes spin-smooth {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.loading-spinner {
+  width: 24px;
+  height: 24px;
+  border: 2.5px solid hsl(var(--border));
+  border-top-color: #38bdf8;
+  border-radius: 50%;
+  animation: spin-smooth 0.8s linear infinite;
+}
+
+/* ─── XS breakpoint for mobile nav labels ────────────────────────────────── */
+
+@media (max-width: 400px) {
+  .xs\:block {
+    display: block;
+  }
+}

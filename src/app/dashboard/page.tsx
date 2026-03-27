@@ -14,9 +14,11 @@
 
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
+import { onAuthStateChanged } from "firebase/auth";
+import { doc, getDoc } from "firebase/firestore";
+import { auth, db } from "@/lib/firebase/client";
 import { Skeleton } from "@/components/ui/skeleton";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import { AQICard, PollutantsCard, HealthAdviceCard } from "@/components/cards";
@@ -36,45 +38,31 @@ interface UserProfileData {
 
 export default function DashboardPage() {
   const router = useRouter();
-  const supabase = createClient();
 
   const [profile, setProfile] = useState<UserProfileData | null>(null);
   const [profileLoading, setProfileLoading] = useState(true);
 
-  // ── Fetch user profile on mount ──────────────────────────────────────────
-  const fetchProfile = useCallback(async () => {
-    try {
-      setProfileLoading(true);
-
-      const {
-        data: { user },
-        error: authError,
-      } = await supabase.auth.getUser();
-
-      if (authError || !user) {
+  // ── Fetch user profile on mount ─────────────────────────────────────────
+  useEffect(() => {
+    setProfileLoading(true);
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (!user) {
         router.push("/auth/login");
         return;
       }
-
-      const { data } = await supabase
-        .from("profiles")
-        .select("full_name, city, area, lat, lng, health_conditions")
-        .eq("id", user.id)
-        .single();
-
-      if (data) {
-        setProfile(data as UserProfileData);
+      try {
+        const profileSnap = await getDoc(doc(db, "users", user.uid));
+        if (profileSnap.exists()) {
+          setProfile(profileSnap.data() as UserProfileData);
+        }
+      } catch (err) {
+        console.error("[Dashboard] Error fetching profile:", err);
+      } finally {
+        setProfileLoading(false);
       }
-    } catch (err) {
-      console.error("[Dashboard] Error fetching profile:", err);
-    } finally {
-      setProfileLoading(false);
-    }
-  }, [supabase, router]);
-
-  useEffect(() => {
-    fetchProfile();
-  }, [fetchProfile]);
+    });
+    return () => unsubscribe();
+  }, [router]);
 
   // ── Fetch live AQI using the user's coordinates ──────────────────────────
   const {

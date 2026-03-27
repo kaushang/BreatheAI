@@ -3,7 +3,7 @@
  *
  * Next.js Route Handler that returns the current live AQI reading for a
  * given geographic coordinate pair. The result is also persisted to the
- * `aqi_history` table in Supabase for trend analysis and dashboards.
+ * `aqi_history` collection in Firestore for trend analysis and dashboards.
  *
  * Query Parameters:
  *   - lat (required): Latitude  (e.g. 28.61)
@@ -20,7 +20,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { fetchLiveAQI, extractPollutantValues } from "@/services/waqi";
-import { createClient } from "@/lib/supabase/server";
+import { adminDb } from "@/lib/firebase/admin";
 
 export async function GET(request: NextRequest) {
   try {
@@ -67,28 +67,27 @@ export async function GET(request: NextRequest) {
     // ── 2. Fetch live AQI from WAQI API ───────────────────────────────────
     const reading = await fetchLiveAQI(lat, lng);
 
-    // ── 3. Persist to Supabase aqi_history table ──────────────────────────
+    // ── 3. Persist to Firestore aqi_history collection ─────────────────────────
     const pollutantValues = extractPollutantValues(reading);
 
-    const supabase = await createClient();
-
-    const { error: dbError } = await supabase.from("aqi_history").insert({
-      city: reading.city,
-      area: reading.area,
-      station_name: reading.station_name,
-      aqi: reading.aqi,
-      dominant_pollutant: reading.dominant_pollutant,
-      pm25: pollutantValues.pm25,
-      pm10: pollutantValues.pm10,
-      no2: pollutantValues.no2,
-      so2: pollutantValues.so2,
-      co: pollutantValues.co,
-      o3: pollutantValues.o3,
-    });
-
-    if (dbError) {
-      // Log the DB error but don't fail the request — the AQI data is still valid
-      console.error("[AQI Current] Supabase insert error:", dbError.message);
+    try {
+      await adminDb.collection("aqi_history").add({
+        city: reading.city,
+        area: reading.area,
+        station_name: reading.station_name,
+        aqi: reading.aqi,
+        dominant_pollutant: reading.dominant_pollutant,
+        pm25: pollutantValues.pm25,
+        pm10: pollutantValues.pm10,
+        no2: pollutantValues.no2,
+        so2: pollutantValues.so2,
+        co: pollutantValues.co,
+        o3: pollutantValues.o3,
+        fetched_at: new Date().toISOString(),
+      });
+    } catch (dbError) {
+      // Log but don't fail the request — AQI data is still valid
+      console.error("[AQI Current] Firestore insert error:", dbError);
     }
 
     // ── 4. Return the AQI reading ─────────────────────────────────────────
