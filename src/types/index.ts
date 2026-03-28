@@ -48,8 +48,6 @@ export interface UserProfile {
   email: string;
   /** User's full name */
   full_name: string;
-  /** Primary city for AQI monitoring */
-  city: string;
   /** Specific area/locality within the city (e.g., "Andheri", "Connaught Place") */
   area: string;
   /** Geographic coordinates of the user's location */

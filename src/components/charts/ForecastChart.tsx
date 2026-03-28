@@ -171,12 +171,15 @@ function AQIGradient({ data }: { data: typeof mockForecastData }) {
 
 interface ForecastChartProps {
   alertThreshold?: number;
+  /** Live forecast data from ML service. Falls back to mockForecastData if not provided. */
+  forecastData?: typeof mockForecastData;
 }
 
 export default function ForecastChart({
   alertThreshold = 150,
+  forecastData,
 }: ForecastChartProps) {
-  const data = mockForecastData;
+  const data = forecastData && forecastData.length > 0 ? forecastData : mockForecastData;
 
   // Show only every 3rd hour on x-axis
   const filteredTicks = data.filter((_, i) => i % 3 === 0).map((d) => d.time);

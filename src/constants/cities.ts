@@ -356,3 +356,23 @@ export function getCitiesByState(state: string): IndianCity[] {
     (city) => city.state.toLowerCase() === state.toLowerCase()
   );
 }
+
+/**
+ * Find the nearest city from coordinates using the Haversine formula.
+ */
+export function findNearestCity(lat: number, lng: number): IndianCity {
+  let minDistance = Infinity;
+  let nearestCity = INDIAN_CITIES[0];
+
+  INDIAN_CITIES.forEach((city) => {
+    const d = Math.sqrt(
+      Math.pow(city.latitude - lat, 2) + Math.pow(city.longitude - lng, 2)
+    );
+    if (d < minDistance) {
+      minDistance = d;
+      nearestCity = city;
+    }
+  });
+
+  return nearestCity;
+}

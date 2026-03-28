@@ -24,6 +24,7 @@
     "resend": "^6.9.2",
     "tailwind-merge": "^3.5.0",
     "tailwindcss-animate": "^1.0.7",
+    "uvicorn": "^0.0.1-security",
     "zod": "^4.3.6"
   },
   "devDependencies": {

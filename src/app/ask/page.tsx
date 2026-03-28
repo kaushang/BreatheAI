@@ -1,73 +1,126 @@
 /**
- * Ask AI Page
+ * Ask AI Page — Live Implementation
  *
- * Conversational AI assistant for air quality questions.
- * Users can ask health-related queries about AQI, pollution, and outdoor safety.
+ * Wires the AskInputCard + AIResponseCard to the /api/chat route.
+ * Users ask natural language questions; the page fetches context (AQI +
+ * 48h forecast + user health profile) and returns a Gemini-powered answer.
  *
- * Layout:
- *   1. Page header — "Ask AI" heading + subheading
- *   2. AskInputCard — prominent input with suggestion chips
- *   3. AIResponseCard — mock response pre-populated with a sample Q&A
- *   4. PreviousQuestionsCard — recent questions as clickable rows
- *
- * All data is hardcoded mock data for now — no backend connection.
+ * States:
+ *   idle      — shows suggestion chips, previous questions
+ *   loading   — skeleton pulse in AIResponseCard slot
+ *   answered  — shows actual AI response
+ *   error     — shows inline error banner
  */
 
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import AskInputCard from "@/components/cards/AskInputCard";
 import AIResponseCard from "@/components/cards/AIResponseCard";
 import PreviousQuestionsCard from "@/components/cards/PreviousQuestionsCard";
 import type { PreviousQuestion } from "@/components/cards/PreviousQuestionsCard";
-import { MessageSquareText } from "lucide-react";
+import { MessageSquareText, Loader2, AlertCircle } from "lucide-react";
+import { onAuthStateChanged } from "firebase/auth";
+import { doc, getDoc } from "firebase/firestore";
+import { auth, db } from "@/lib/firebase/client";
 
-// ─── Mock Data ───────────────────────────────────────────────────────────────
+// ─── Types ────────────────────────────────────────────────────────────────────
 
-/** Pre-populated mock response (shown as if a question was already asked) */
-const MOCK_RESPONSE = {
-  question: "Is it safe to go for a run tomorrow morning?",
-  headline: "Not recommended tomorrow morning",
-  explanation:
-    "AQI is predicted to be around 210 (Poor) tomorrow morning in Anand Vihar. For someone with your health profile, prolonged outdoor exercise is not advisable. PM2.5 levels will be elevated.",
-  alternative:
-    "Consider exercising indoors or wait until after 7 PM when AQI is expected to drop to around 110 (Moderate).",
-  aqi: 210,
-};
+interface ChatResponse {
+  question:    string;
+  headline:    string;
+  explanation: string;
+  alternative: string;
+  aqi:         number;
+  category:    string;
+}
 
-/** Hardcoded recent questions */
-const MOCK_PREVIOUS_QUESTIONS: PreviousQuestion[] = [
-  {
-    id: "q1",
-    question: "What will the air quality be like this weekend?",
-    timestamp: "2 hours ago",
-  },
-  {
-    id: "q2",
-    question: "Is it safe for my mother with asthma to go for a walk?",
-    timestamp: "Yesterday, 4:30 PM",
-  },
-  {
-    id: "q3",
-    question: "Should I keep my windows open tonight?",
-    timestamp: "2 days ago",
-  },
+interface UserLocation {
+  city: string;
+  lat:  number;
+  lng:  number;
+}
+
+// ─── Suggestion seeds ─────────────────────────────────────────────────────────
+
+const RECENT_SUGGESTIONS: PreviousQuestion[] = [
+  { id: "s1", question: "Is it safe to go for a run right now?",              timestamp: "Try asking" },
+  { id: "s2", question: "Can my child play outside today?",                    timestamp: "Try asking" },
+  { id: "s3", question: "Should I wear a mask to commute today?",              timestamp: "Try asking" },
+  { id: "s4", question: "What precautions should I take with my asthma?",     timestamp: "Try asking" },
+  { id: "s5", question: "When is the best time to exercise outdoors tomorrow?",timestamp: "Try asking" },
 ];
 
-// ─── Page Component ──────────────────────────────────────────────────────────
+// ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function AskAIPage() {
-  const [query, setQuery] = useState("");
+  const router = useRouter();
 
-  function handleSubmit(question: string) {
-    // In the future this would call the AI backend
-    console.log("Submitted question:", question);
-  }
+  const [query,      setQuery]      = useState("");
+  const [response,   setResponse]   = useState<ChatResponse | null>(null);
+  const [loading,    setLoading]    = useState(false);
+  const [error,      setError]      = useState("");
+  const [location,   setLocation]   = useState<UserLocation>({ city: "Delhi", lat: 28.61, lng: 77.21 });
+  const [history,    setHistory]    = useState<PreviousQuestion[]>([]);
+
+  // Load user's location from Firestore on mount
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, async (user) => {
+      if (!user) { router.push("/auth/login"); return; }
+      try {
+        const profileSnap = await getDoc(doc(db, "users", user.uid));
+        if (profileSnap.exists()) {
+          const data = profileSnap.data();
+          setLocation({
+            city: data.city  ?? "Delhi",
+            lat:  data.lat   ?? 28.61,
+            lng:  data.lng   ?? 77.21,
+          });
+        }
+      } catch { /* use defaults */ }
+    });
+    return () => unsub();
+  }, [router]);
+
+  const handleSubmit = useCallback(async (question: string) => {
+    if (!question.trim()) return;
+    setError("");
+    setLoading(true);
+    setResponse(null);
+
+    try {
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question, ...location }),
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error ?? `Server error ${res.status}`);
+      }
+
+      const data: ChatResponse = await res.json();
+      setResponse(data);
+
+      // Add to local history
+      setHistory((prev) => [
+        { id: Date.now().toString(), question, timestamp: "Just now" },
+        ...prev.slice(0, 9),
+      ]);
+    } catch (err) {
+      console.error("[Ask AI] Error:", err);
+      setError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  }, [location]);
 
   return (
     <DashboardLayout>
-      {/* ── Page Header ────────────────────────────────────────────────────── */}
+      {/* ── Page Header ──────────────────────────────────────────────────── */}
       <header id="ask-header" className="mb-8">
         <div className="flex items-center gap-2.5 mb-1">
           <MessageSquareText className="h-5 w-5 text-sky-500" />
@@ -76,41 +129,72 @@ export default function AskAIPage() {
           </h1>
         </div>
         <p className="text-sm text-muted-foreground">
-          Ask anything about your air quality in plain English
+          Ask anything about your air quality in plain English — powered by Gemini AI
         </p>
       </header>
 
-      {/* ── Input Area ─────────────────────────────────────────────────────── */}
+      {/* ── Input Area ───────────────────────────────────────────────────── */}
       <section id="section-ask-input" className="mb-8">
         <AskInputCard
           value={query}
           onChange={setQuery}
-          onSubmit={handleSubmit}
+          onSubmit={(q) => { setQuery(q); handleSubmit(q); }}
         />
       </section>
 
-      {/* ── Mock AI Response ───────────────────────────────────────────────── */}
-      <section id="section-ai-response" className="mb-6">
-        <AIResponseCard
-          question={MOCK_RESPONSE.question}
-          headline={MOCK_RESPONSE.headline}
-          explanation={MOCK_RESPONSE.explanation}
-          alternative={MOCK_RESPONSE.alternative}
-          aqi={MOCK_RESPONSE.aqi}
-        />
-      </section>
+      {/* ── Error ────────────────────────────────────────────────────────── */}
+      {error && (
+        <div className="mb-6 flex items-center gap-3 rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+          <AlertCircle className="h-4 w-4 shrink-0" />
+          {error}
+        </div>
+      )}
 
-      {/* ── Previous Questions ─────────────────────────────────────────────── */}
+      {/* ── Loading skeleton ─────────────────────────────────────────────── */}
+      {loading && (
+        <section className="mb-6">
+          <div className="rounded-2xl border border-border bg-card p-6 sm:p-8 space-y-4 animate-pulse">
+            <div className="flex items-center gap-2">
+              <div className="h-6 w-6 rounded-lg bg-sky-500/10 flex items-center justify-center">
+                <Loader2 className="h-3.5 w-3.5 text-sky-500 animate-spin" />
+              </div>
+              <span className="text-xs font-semibold tracking-wide text-sky-500 uppercase">breatheAI is thinking…</span>
+            </div>
+            <div className="h-4 w-3/4 rounded bg-muted/60" />
+            <div className="h-6 w-1/2 rounded bg-muted/60" />
+            <div className="space-y-2">
+              <div className="h-3 w-full rounded bg-muted/40" />
+              <div className="h-3 w-5/6 rounded bg-muted/40" />
+              <div className="h-3 w-4/6 rounded bg-muted/40" />
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* ── AI Response ──────────────────────────────────────────────────── */}
+      {response && !loading && (
+        <section id="section-ai-response" className="mb-6">
+          <AIResponseCard
+            question={response.question}
+            headline={response.headline}
+            explanation={response.explanation}
+            alternative={response.alternative}
+            aqi={response.aqi}
+          />
+        </section>
+      )}
+
+      {/* ── Suggestion / History ─────────────────────────────────────────── */}
       <section id="section-previous-questions" className="mb-8">
         <PreviousQuestionsCard
-          questions={MOCK_PREVIOUS_QUESTIONS}
-          onSelect={setQuery}
+          questions={history.length > 0 ? history : RECENT_SUGGESTIONS}
+          onSelect={(q) => { setQuery(q); handleSubmit(q); }}
         />
       </section>
 
-      {/* ── Footer note ────────────────────────────────────────────────────── */}
+      {/* ── Footer note ──────────────────────────────────────────────────── */}
       <div className="text-center text-[10px] text-muted-foreground/40 pb-4">
-        Responses are AI-generated based on forecast data · Not medical advice ·
+        Responses are AI-generated using live AQI + forecast data · Not medical advice ·
         Always consult a healthcare professional
       </div>
     </DashboardLayout>
