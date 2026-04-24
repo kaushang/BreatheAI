@@ -11,7 +11,17 @@
 
 import { NextRequest, NextResponse } from "next/server";
 
-const ML_SERVICE_URL = process.env.ML_SERVICE_URL || "http://localhost:8001";
+const ML_SERVICE_URLS = Array.from(
+  new Set(
+    [
+      process.env.ML_SERVICE_URL,
+      "http://127.0.0.1:8081",
+      "http://localhost:8081",
+      "http://127.0.0.1:8001",
+      "http://localhost:8001",
+    ].filter((url): url is string => Boolean(url)),
+  ),
+);
 
 export async function GET(
   request: NextRequest,
@@ -37,29 +47,48 @@ export async function GET(
   }
 
   try {
-    const mlUrl = `${ML_SERVICE_URL}/forecast?city=${encodeURIComponent(city)}&lat=${lat}&lng=${lng}&hours=${hours}`;
-    const mlRes = await fetch(mlUrl, {
-      next: { revalidate: 0 }, // always fresh
-      signal: AbortSignal.timeout(10_000), // 10s timeout
-    });
+    let lastNetworkError: unknown = null;
 
-    if (!mlRes.ok) {
-      const errText = await mlRes.text();
-      console.error("[Forecast Proxy] ML service error:", errText);
-      return NextResponse.json(
-        { error: "ML service returned an error", details: errText },
-        { status: mlRes.status }
-      );
+    for (const baseUrl of ML_SERVICE_URLS) {
+      const mlUrl = `${baseUrl}/forecast?city=${encodeURIComponent(city)}&lat=${lat}&lng=${lng}&hours=${hours}`;
+      try {
+        const mlRes = await fetch(mlUrl, {
+          next: { revalidate: 0 }, // always fresh
+          signal: AbortSignal.timeout(10_000), // 10s timeout
+        });
+
+        if (!mlRes.ok) {
+          const errText = await mlRes.text();
+          // Try next candidate when endpoint is missing on this candidate.
+          if (mlRes.status === 404) {
+            continue;
+          }
+          console.error("[Forecast Proxy] ML service error:", {
+            baseUrl,
+            status: mlRes.status,
+            errText,
+          });
+          return NextResponse.json(
+            { error: "ML service returned an error", details: errText },
+            { status: mlRes.status },
+          );
+        }
+
+        const data = await mlRes.json();
+        return NextResponse.json(data);
+      } catch (err) {
+        lastNetworkError = err;
+      }
     }
 
-    const data = await mlRes.json();
-    return NextResponse.json(data);
+    throw lastNetworkError ?? new Error("No ML service candidate responded.");
   } catch (err) {
     console.error("[Forecast Proxy] Could not reach ML service:", err);
     return NextResponse.json(
       {
         error: "ML service unavailable",
-        hint: "Make sure the Python ML service is running: cd ml-service && uvicorn main:app --port 8001",
+        hint: "Start ML service and/or set ML_SERVICE_URL. Example: cd ml-service && uvicorn main:app --port 8081",
+        attempted_urls: ML_SERVICE_URLS,
       },
       { status: 503 }
     );

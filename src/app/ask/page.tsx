@@ -29,28 +29,48 @@ import { auth, db } from "@/lib/firebase/client";
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface ChatResponse {
-  question:    string;
-  headline:    string;
+  question: string;
+  headline: string;
   explanation: string;
   alternative: string;
-  aqi:         number;
-  category:    string;
+  aqi: number;
+  category: string;
 }
 
 interface UserLocation {
   city: string;
-  lat:  number;
-  lng:  number;
+  lat: number;
+  lng: number;
 }
 
 // ─── Suggestion seeds ─────────────────────────────────────────────────────────
 
 const RECENT_SUGGESTIONS: PreviousQuestion[] = [
-  { id: "s1", question: "Is it safe to go for a run right now?",              timestamp: "Try asking" },
-  { id: "s2", question: "Can my child play outside today?",                    timestamp: "Try asking" },
-  { id: "s3", question: "Should I wear a mask to commute today?",              timestamp: "Try asking" },
-  { id: "s4", question: "What precautions should I take with my asthma?",     timestamp: "Try asking" },
-  { id: "s5", question: "When is the best time to exercise outdoors tomorrow?",timestamp: "Try asking" },
+  {
+    id: "s1",
+    question: "Is it safe to go for a run right now?",
+    timestamp: "Try asking",
+  },
+  {
+    id: "s2",
+    question: "Can my child play outside today?",
+    timestamp: "Try asking",
+  },
+  {
+    id: "s3",
+    question: "Should I wear a mask to commute today?",
+    timestamp: "Try asking",
+  },
+  {
+    id: "s4",
+    question: "What precautions should I take with my asthma?",
+    timestamp: "Try asking",
+  },
+  {
+    id: "s5",
+    question: "When is the best time to exercise outdoors tomorrow?",
+    timestamp: "Try asking",
+  },
 ];
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
@@ -58,65 +78,85 @@ const RECENT_SUGGESTIONS: PreviousQuestion[] = [
 export default function AskAIPage() {
   const router = useRouter();
 
-  const [query,      setQuery]      = useState("");
-  const [response,   setResponse]   = useState<ChatResponse | null>(null);
-  const [loading,    setLoading]    = useState(false);
-  const [error,      setError]      = useState("");
-  const [location,   setLocation]   = useState<UserLocation>({ city: "Delhi", lat: 28.61, lng: 77.21 });
-  const [history,    setHistory]    = useState<PreviousQuestion[]>([]);
+  const [query, setQuery] = useState("");
+  const [response, setResponse] = useState<ChatResponse | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [location, setLocation] = useState<UserLocation>({
+    city: "Delhi",
+    lat: 28.61,
+    lng: 77.21,
+  });
+  const [history, setHistory] = useState<PreviousQuestion[]>([]);
 
   // Load user's location from Firestore on mount
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (user) => {
-      if (!user) { router.push("/auth/login"); return; }
+      if (!user) {
+        router.push("/auth/login");
+        return;
+      }
       try {
         const profileSnap = await getDoc(doc(db, "users", user.uid));
         if (profileSnap.exists()) {
           const data = profileSnap.data();
           setLocation({
-            city: data.city  ?? "Delhi",
-            lat:  data.lat   ?? 28.61,
-            lng:  data.lng   ?? 77.21,
+            city: data.city ?? "Delhi",
+            lat: data.lat ?? 28.61,
+            lng: data.lng ?? 77.21,
           });
         }
-      } catch { /* use defaults */ }
+      } catch {
+        /* use defaults */
+      }
     });
     return () => unsub();
   }, [router]);
 
-  const handleSubmit = useCallback(async (question: string) => {
-    if (!question.trim()) return;
-    setError("");
-    setLoading(true);
-    setResponse(null);
+  const handleSubmit = useCallback(
+    async (question: string) => {
+      if (!question.trim()) return;
+      setError("");
+      setLoading(true);
+      setResponse(null);
 
-    try {
-      const res = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question, ...location }),
-      });
+      try {
+        const res = await fetch("/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ question, ...location }),
+        });
 
-      if (!res.ok) {
-        const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.error ?? `Server error ${res.status}`);
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          const message =
+            typeof errData?.details === "string"
+              ? `${errData.error ?? "Request failed"} ${errData.details}`
+              : (errData.error ?? `Server error ${res.status}`);
+          throw new Error(message);
+        }
+
+        const data: ChatResponse = await res.json();
+        setResponse(data);
+
+        // Add to local history
+        setHistory((prev) => [
+          { id: Date.now().toString(), question, timestamp: "Just now" },
+          ...prev.slice(0, 9),
+        ]);
+      } catch (err) {
+        console.error("[Ask AI] Error:", err);
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Something went wrong. Please try again.",
+        );
+      } finally {
+        setLoading(false);
       }
-
-      const data: ChatResponse = await res.json();
-      setResponse(data);
-
-      // Add to local history
-      setHistory((prev) => [
-        { id: Date.now().toString(), question, timestamp: "Just now" },
-        ...prev.slice(0, 9),
-      ]);
-    } catch (err) {
-      console.error("[Ask AI] Error:", err);
-      setError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
-    } finally {
-      setLoading(false);
-    }
-  }, [location]);
+    },
+    [location],
+  );
 
   return (
     <DashboardLayout>
@@ -129,7 +169,8 @@ export default function AskAIPage() {
           </h1>
         </div>
         <p className="text-sm text-muted-foreground">
-          Ask anything about your air quality in plain English — powered by Gemini AI
+          Ask anything about your air quality in plain English — powered by
+          Gemini AI
         </p>
       </header>
 
@@ -138,7 +179,10 @@ export default function AskAIPage() {
         <AskInputCard
           value={query}
           onChange={setQuery}
-          onSubmit={(q) => { setQuery(q); handleSubmit(q); }}
+          onSubmit={(q) => {
+            setQuery(q);
+            handleSubmit(q);
+          }}
         />
       </section>
 
@@ -158,7 +202,9 @@ export default function AskAIPage() {
               <div className="h-6 w-6 rounded-lg bg-sky-500/10 flex items-center justify-center">
                 <Loader2 className="h-3.5 w-3.5 text-sky-500 animate-spin" />
               </div>
-              <span className="text-xs font-semibold tracking-wide text-sky-500 uppercase">breatheAI is thinking…</span>
+              <span className="text-xs font-semibold tracking-wide text-sky-500 uppercase">
+                breatheAI is thinking…
+              </span>
             </div>
             <div className="h-4 w-3/4 rounded bg-muted/60" />
             <div className="h-6 w-1/2 rounded bg-muted/60" />
@@ -188,14 +234,17 @@ export default function AskAIPage() {
       <section id="section-previous-questions" className="mb-8">
         <PreviousQuestionsCard
           questions={history.length > 0 ? history : RECENT_SUGGESTIONS}
-          onSelect={(q) => { setQuery(q); handleSubmit(q); }}
+          onSelect={(q) => {
+            setQuery(q);
+            handleSubmit(q);
+          }}
         />
       </section>
 
       {/* ── Footer note ──────────────────────────────────────────────────── */}
       <div className="text-center text-[10px] text-muted-foreground/40 pb-4">
-        Responses are AI-generated using live AQI + forecast data · Not medical advice ·
-        Always consult a healthcare professional
+        Responses are AI-generated using live AQI + forecast data · Not medical
+        advice · Always consult a healthcare professional
       </div>
     </DashboardLayout>
   );
