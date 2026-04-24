@@ -14,7 +14,8 @@ import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup } from "firebase/auth";
-import { auth } from "@/lib/firebase/client";
+import { doc, getDoc } from "firebase/firestore";
+import { auth, db } from "@/lib/firebase/client";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -35,6 +36,14 @@ export default function LoginPage() {
 
     try {
       const result = await signInWithPopup(auth, provider);
+      const userDoc = await getDoc(doc(db, "users", result.user.uid));
+
+      // New Google user: collect profile details first (location + health).
+      if (!userDoc.exists()) {
+        router.push("/auth/signup?completeProfile=1");
+        return;
+      }
+
       const idToken = await result.user.getIdToken();
       
       const res = await fetch("/api/auth/session", {

@@ -20,7 +20,8 @@ import {
   updateProfile, 
   sendEmailVerification,
   GoogleAuthProvider,
-  signInWithPopup
+  signInWithPopup,
+  onAuthStateChanged
 } from "firebase/auth";
 import { doc, setDoc, getDoc } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase/client";
@@ -81,6 +82,36 @@ export default function SignupPage() {
     healthConditions: [],
     aqiThreshold: SLIDER_DEFAULT,
   });
+
+  // If a user arrives already signed in with Google (e.g., redirected from login),
+  // switch this page into OAuth-completion mode and prefill available fields.
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (!user) return;
+
+      const isGoogleUser = user.providerData.some(
+        (provider) => provider.providerId === "google.com",
+      );
+      if (!isGoogleUser) return;
+
+      try {
+        const userDoc = await getDoc(doc(db, "users", user.uid));
+        if (userDoc.exists()) return;
+
+        setIsOAuth(true);
+        setStep(1);
+        setFormData((prev) => ({
+          ...prev,
+          fullName: prev.fullName || user.displayName || "",
+          email: prev.email || user.email || "",
+        }));
+      } catch (err) {
+        console.error("[Signup] OAuth prefill error:", err);
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
 
   // ─── Google Sign-In ─────────────────────────────────────────────────────
 
